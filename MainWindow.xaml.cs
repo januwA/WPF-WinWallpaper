@@ -4,6 +4,8 @@ using System.Windows;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.IO;
+using System.Windows.Media.Imaging;
 
 namespace WinWallpaper
 {
@@ -12,7 +14,6 @@ namespace WinWallpaper
   /// </summary>
   public partial class MainWindow : Window
   {
-
     [DllImport("Kernel32.dll")]
     public static extern int OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
 
@@ -51,6 +52,9 @@ namespace WinWallpaper
     System.Diagnostics.Process process = null;
     bool isPlaying = false;
 
+
+    private System.Windows.Forms.NotifyIcon notifyIcon = null;
+
     public MainWindow()
     {
       InitializeComponent();
@@ -69,6 +73,66 @@ namespace WinWallpaper
       process = new System.Diagnostics.Process();
       process.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
       process.StartInfo.FileName = ffplayExe;
+
+
+      // 托盘图标
+      //设置托盘的各个属性
+      notifyIcon = new System.Windows.Forms.NotifyIcon();
+      notifyIcon.Text = "WinWallpaper";
+
+      notifyIcon.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(notifyIcon_MouseClick);
+
+      notifyIcon.ContextMenu = new System.Windows.Forms.ContextMenu(new System.Windows.Forms.MenuItem[] {
+       new System.Windows.Forms.MenuItem("exit", new EventHandler(exit_Click))
+      });
+
+      //窗体状态改变时候触发
+      StateChanged += new EventHandler(SysTray_StateChanged);
+    }
+
+    private System.Drawing.Icon ImageWpfToGDI(System.Windows.Media.ImageSource image)
+    {
+      MemoryStream ms = new MemoryStream();
+      var encoder = new System.Windows.Media.Imaging.BmpBitmapEncoder();
+      encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image as System.Windows.Media.Imaging.BitmapSource));
+      encoder.Save(ms);
+      ms.Flush();
+      return new System.Drawing.Icon(ms);
+    }
+
+
+    private void notifyIcon_MouseClick(object sender, System.Windows.Forms.MouseEventArgs e)
+    {
+      if (e.Button == System.Windows.Forms.MouseButtons.Left)
+      {
+        notifyIcon.Visible = false;
+        Visibility = Visibility.Visible;
+        WindowState = WindowState.Normal;
+        Activate();
+      }
+    }
+
+    private void exit_Click(object sender, EventArgs e)
+    {
+      notifyIcon.Dispose();
+      System.Windows.Application.Current.Shutdown();
+    }
+
+
+    private void SysTray_StateChanged(object sender, EventArgs e)
+    {
+      if (WindowState == WindowState.Minimized)
+      {
+        if (notifyIcon.Icon == null)
+        {
+
+          string curExePath = io.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, System.AppDomain.CurrentDomain.FriendlyName);
+          notifyIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(curExePath);
+        }
+        Visibility = Visibility.Hidden;
+        notifyIcon.Visible = true;
+        WindowState = WindowState.Normal;
+      }
     }
 
     private string GetFullPath(string fileName)
@@ -149,7 +213,7 @@ namespace WinWallpaper
       arguments += $" \"{input}\"";
 
       process.StartInfo.Arguments = arguments;
-      
+
       startPlay();
     }
 
@@ -199,7 +263,8 @@ namespace WinWallpaper
       if (wWorker == 0)
       {
         SendMessageTimeoutA(wProgman, 0x52C, IntPtr.Zero, IntPtr.Zero, 0, 1000, 0);
-        EnumWindows(delegate(IntPtr hwnd, IntPtr Lparam) {
+        EnumWindows(delegate (IntPtr hwnd, IntPtr Lparam)
+        {
           int SHELLDLL_DefView = FindWindowExA(hwnd, IntPtr.Zero, "SHELLDLL_DefView", null);
           if (SHELLDLL_DefView != 0)
           {
@@ -213,9 +278,15 @@ namespace WinWallpaper
       SetParent(wFFplay, wProgman);
     }
 
+    /// <summary>
+    /// 窗口关闭时
+    /// </summary>
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void Window_Closed(object sender, EventArgs e)
     {
       closePlay();
+      notifyIcon.Dispose();
     }
   }
 }

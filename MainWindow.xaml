@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:WinWallpaper"
         mc:Ignorable="d"
         Closed="Window_Closed"
+        ResizeMode="CanMinimize"
         Title="WinWallpaper" Height="115" Width="386" >
   <StackPanel Margin="16">
     <StackPanel Orientation="Horizontal">
